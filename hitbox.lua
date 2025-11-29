@@ -1,4 +1,4 @@
--- Hitbox Genişletici - KÜÇÜLTME ÇALIŞAN VERSİYON
+-- Hitbox Genişletici - KARE SORUNU FIX
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -17,6 +17,9 @@ local HitboxMaterial = "Neon"
 local scriptEnabled = true
 local menuMinimized = false
 local originalSize = UDim2.new(0, 300, 0, 300)
+
+-- Orijinal boyutları saklamak için
+local originalSizes = {}
 
 -- GUI Oluşturma
 local screenGui = Instance.new("ScreenGui")
@@ -197,6 +200,21 @@ local menuElements = {
 }
 
 -- FONKSİYONLAR
+local function saveOriginalSize(character)
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart and not originalSizes[character] then
+        originalSizes[character] = {
+            Size = humanoidRootPart.Size,
+            Transparency = humanoidRootPart.Transparency,
+            BrickColor = humanoidRootPart.BrickColor,
+            Material = humanoidRootPart.Material,
+            CanCollide = humanoidRootPart.CanCollide
+        }
+    end
+end
+
 local function updateHitboxes()
     if not scriptEnabled or not Enabled then return end
     
@@ -207,6 +225,9 @@ local function updateHitboxes()
                 if character then
                     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
                     if humanoidRootPart then
+                        -- Orijinal boyutu kaydet
+                        saveOriginalSize(character)
+                        
                         -- Hitbox'u güncelle
                         humanoidRootPart.Size = Vector3.new(HeadSize, HeadSize, HeadSize)
                         humanoidRootPart.Transparency = Transparency
@@ -220,21 +241,34 @@ local function updateHitboxes()
     end
 end
 
+local function restoreOriginalSize(character)
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart and originalSizes[character] then
+        local original = originalSizes[character]
+        humanoidRootPart.Size = original.Size
+        humanoidRootPart.Transparency = original.Transparency
+        humanoidRootPart.BrickColor = original.BrickColor
+        humanoidRootPart.Material = original.Material
+        humanoidRootPart.CanCollide = original.CanCollide
+    elseif humanoidRootPart then
+        -- Eğer kayıtlı orijinal boyut yoksa, standart boyutlara döndür
+        humanoidRootPart.Size = Vector3.new(2, 2, 1)
+        humanoidRootPart.Transparency = 0
+        humanoidRootPart.BrickColor = BrickColor.new("Medium stone grey")
+        humanoidRootPart.Material = "Plastic"
+        humanoidRootPart.CanCollide = true
+    end
+end
+
 local function resetHitboxes()
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= player then
             pcall(function()
                 local character = v.Character
                 if character then
-                    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-                    if humanoidRootPart then
-                        -- Orijinal boyutlara döndür
-                        humanoidRootPart.Size = Vector3.new(2, 2, 1)
-                        humanoidRootPart.Transparency = 0
-                        humanoidRootPart.BrickColor = BrickColor.new("Medium stone grey")
-                        humanoidRootPart.Material = "Plastic"
-                        humanoidRootPart.CanCollide = true
-                    end
+                    restoreOriginalSize(character)
                 end
             end)
         end
@@ -250,6 +284,14 @@ local function toggleHitbox()
         toggleButton.BackgroundColor3 = Color3.fromRGB(60, 200, 80)
         toggleButton.Text = "Hile Aktif (H: Kapat)"
         statusLabel.Text = "Durum: Aktif - Boyut: " .. HeadSize
+        
+        -- Mevcut karakterlerin orijinal boyutlarını kaydet
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= player and v.Character then
+                saveOriginalSize(v.Character)
+            end
+        end
+        
         updateHitboxes()
     else
         toggleButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
@@ -367,14 +409,18 @@ end)
 
 -- Yeni oyuncuları takip et
 Players.PlayerAdded:Connect(function(newPlayer)
-    if Enabled then
-        newPlayer.CharacterAdded:Connect(function(character)
-            wait(1) -- Karakterin yüklenmesini bekle
-            if Enabled then
-                updateHitboxes()
-            end
-        end)
-    end
+    newPlayer.CharacterAdded:Connect(function(character)
+        wait(0.5) -- Karakterin yüklenmesini bekle
+        
+        if Enabled then
+            -- Orijinal boyutu kaydet ve hitbox uygula
+            saveOriginalSize(character)
+            updateHitboxes()
+        else
+            -- Orijinal boyutu kaydet
+            saveOriginalSize(character)
+        end
+    end)
 end)
 
 -- Ana güncelleme döngüsü
@@ -388,11 +434,19 @@ end)
 for _, existingPlayer in pairs(Players:GetPlayers()) do
     if existingPlayer ~= player then
         existingPlayer.CharacterAdded:Connect(function(character)
-            wait(1)
+            wait(0.5)
             if Enabled then
+                saveOriginalSize(character)
                 updateHitboxes()
+            else
+                saveOriginalSize(character)
             end
         end)
+        
+        -- Mevcut karakterin orijinal boyutunu kaydet
+        if existingPlayer.Character then
+            saveOriginalSize(existingPlayer.Character)
+        end
     end
 end
 
@@ -403,3 +457,4 @@ print("Saydamlık: 0-255 (TextBox'a yaz)")
 print("Renk: Kırmızı/Mavi butonları")
 print("_ butonu: Menüyü küçült")
 print("X butonu: Tamamen kapat")
+print("✅ KARE SORUNU FIXLENDİ!")
